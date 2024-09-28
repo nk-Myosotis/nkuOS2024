@@ -128,3 +128,47 @@ CPU 会自动将程序计数器（PC）和必要的状态信息推入栈。
 ### 是否需要保存所有寄存器：
 
 是，通常，对于任何中断，`__alltraps` 需要保存所有寄存器，因为在中断期间，可能会调用其他函数或中断处理程序，这些操作可能会修改寄存器。如果不保存所有寄存器，可能会丢失原程序的状态，导致后续执行出现错误。
+
+## 扩展练习 Challenge2：理解上下文切换机制
+
+回答：在trapentry.S中汇编代码 csrw sscratch, sp；csrrw s0, sscratch, x0实现了什么操作，目的是什么？save all里面保存了stval scause这些csr，而在restore all里面却不还原它们？那这样store的意义何在呢？
+
+### csrw sscratch, sp 和 csrrw s0, sscratch, x0 实现了什么操作，目的是什么？
+
+`csrw sscratch, sp` 将当前栈指针 sp 保存到 sscratch 寄存器中。
+`csrrw s0, sscratch, x0` 将 sscratch 寄存器的值交换到 s0 寄存器中，同时将 x0（零寄存器）的值写入 sscratch。
+这些操作的目的是保存和恢复栈指针，以便在中断处理过程中正确管理栈。
+
+### SAVE_ALL 里面保存了 stval 和 scause 这些 CSR，而在 RESTORE_ALL 里面却不还原它们？那这样 store 的意义何在呢？
+
+保存 stval 和 scause 的目的是在中断处理过程中可以访问这些寄存器的值，以便确定中断或异常的原因和相关信息。而在恢复上下文时，不需要还原这些寄存器，因为它们的值在中断处理完成后已经不再需要。
+
+## 扩展练习 Challenge3：完善异常中断
+
+编程完善在触发一条非法指令异常 mret 和 ebreak 时，在 kern/trap/trap.c 的异常处理函数中捕获，并对其进行处理，简单输出异常类型和异常指令触发地址。
+
+### 补充代码
+
+```
+void exception_handler(struct trapframe *tf) {
+    switch (tf->cause) {
+        case CAUSE_ILLEGAL_INSTRUCTION:
+            cprintf("Exception type: Illegal instruction\n");
+            cprintf("Illegal instruction caught at 0x%08x\n", tf->epc);
+            tf->epc += 4; // 跳过非法指令
+            break;
+        case CAUSE_BREAKPOINT:
+            cprintf("Exception type: Breakpoint\n");
+            cprintf("Breakpoint caught at 0x%08x\n", tf->epc);
+            tf->epc += 4; // 跳过断点指令
+            break;
+        // 其他异常处理...
+    }
+}
+```
+
+exception_handler 函数接收一个指向 trapframe 结构体的指针 tf，该结构体包含了中断或异常发生时的寄存器状态和其他信息。tf->cause 存储了导致异常的原因。通过 switch 语句，我们可以根据不同的异常类型执行相应的处理逻辑。
+
+当捕获到非法指令异常时，首先打印出异常信息，包括触发异常的地址（tf->epc）。tf->epc 是异常发生时的程序计数器（PC），指向导致异常的指令地址。通过 tf->epc += 4;，我们将 epc 增加 4，跳过当前的非法指令，继续执行后面的指令。这是因为 RISC-V 指令通常是 4 字节对齐的。
+
+ 当捕获到断点异常时，执行类似的处理逻辑。打印出触发断点的地址和异常类型，通过 tf->epc += 4，可以跳过断点指令，继续执行后面的指令。
