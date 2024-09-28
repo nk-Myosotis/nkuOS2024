@@ -13,7 +13,7 @@
   --nographic \
   --bios default`
 
-![alt text]({5AC36B83-98E2-40EA-8107-4D3A2861A604}.png)
+![alt text]({B6B06FA6-3548-4B5A-97A1-5E2749B21AE4}.png)
 
 opensbi 运行成功
 
@@ -22,7 +22,7 @@ opensbi 运行成功
 
 我们在 lab0 界面打开一个终端，使用`make debug`启动 QEMU 并等待 GDB 连接；然后在另一个终端中，使用`make gdb`启动 GDB 并连接到 QEMU 。GDB 启动后，可以看到：
 
-![alt text]({70C765F4-E0F0-4DAC-AAB3-439348426BF0}.png)
+![alt text]({39BF1941-E527-4A7E-B375-C5D0F8659479}.png)
 
 在GDB界面可以看到：
 ```
@@ -90,7 +90,7 @@ Breakpoint 1, kern_entry () at kern/init/entry.S:7
 ```
 执行到0x80200000，可以看见 OpenSBI 应用程序开始执行：
 
-![alt text]({69CA4FDE-0200-46C9-AE4E-434B23B6E255}.png)
+![alt text]({FDAFBB82-CA3B-4999-A877-704239D3CDF7}.png)
 ***
 使用`x/10i $pc`观察，得到
 ```
