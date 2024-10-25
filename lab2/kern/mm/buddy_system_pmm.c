@@ -1,7 +1,7 @@
 #include <pmm.h>
 #include <list.h>
 #include <string.h>
-#include <buddy_pmm.h>
+#include <buddy_system_pmm.h>
 
 #define LEFT_CHILD(index)   ((index) << 1)
 #define RIGHT_CHILD(index)  (((index) << 1) + 1)
@@ -41,7 +41,7 @@ buddy_init_memmap(struct Page *base, size_t n) {
         set_page_ref(base + i, 0);
     }
     // 初始化管理页
-    buddy_page = (unsigned int*)KADDR(page2pa(base));
+    buddy_page = (unsigned int*)PADDR(page2pa(base));
     for (int i = useable_page_num; i < useable_page_num << 1; i++){
         buddy_page[i] = 1;
     }
