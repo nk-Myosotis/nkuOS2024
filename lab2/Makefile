@@ -107,8 +107,8 @@ KSRCDIR		+= kern/init \
 			   kern/debug \
 			   kern/driver \
 			   kern/trap \
-			   kern/mm
-
+			   kern/mm \
+			
 KCFLAGS		+= $(addprefix -I,$(KINCLUDE))
 
 ifeq ($(MAKECMDGOALS),test)

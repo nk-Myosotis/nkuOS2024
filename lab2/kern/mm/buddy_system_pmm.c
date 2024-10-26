@@ -41,7 +41,7 @@ buddy_init_memmap(struct Page *base, size_t n) {
         set_page_ref(base + i, 0);
     }
     // 初始化管理页
-    buddy_page = (unsigned int*)PADDR(page2pa(base));
+    buddy_page = (unsigned int*)KADDR(page2pa(base));
     for (int i = useable_page_num; i < useable_page_num << 1; i++){
         buddy_page[i] = 1;
     }
@@ -127,7 +127,7 @@ buddy_nr_free_pages(void) {
 
 static void
 buddy_check(void) {
-    int all_pages = nr_free_pages();
+    int all_pages = buddy_nr_free_pages();
     struct Page* p0, *p1, *p2, *p3;
     // 分配过大的页数
     assert(alloc_pages(all_pages + 1) == NULL);
@@ -155,7 +155,7 @@ buddy_check(void) {
     assert(p2 == p0);
     free_pages(p2, 3);
     assert((p2 + 2)->ref == 0);
-    assert(nr_free_pages() == all_pages >> 1);
+    assert(buddy_nr_free_pages() == all_pages >> 1);
 
     p1 = alloc_pages(129);
     assert(p1 == p0 + 256);
@@ -163,8 +163,8 @@ buddy_check(void) {
     free_pages(p3, 8);
 }
 
-const struct pmm_manager buddy_pmm_manager = {
-    .name = "buddy_pmm_manager",
+const struct pmm_manager buddy_system_pmm_manager = {
+    .name = "buddy_system_pmm_manager",
     .init = buddy_init,
     .init_memmap = buddy_init_memmap,
     .alloc_pages = buddy_alloc_pages,
