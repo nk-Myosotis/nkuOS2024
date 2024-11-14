@@ -55,7 +55,7 @@
  *               (5.2) reset the fields of pages, such as p->ref, p->flags (PageProperty)
  *               (5.3) try to merge low addr or high addr blocks. Notice: should change some pages's p->property correctly.
  */
-extern free_area_t free_area;
+free_area_t free_area;
 
 #define free_list (free_area.free_list)
 #define nr_free (free_area.nr_free)
@@ -352,4 +352,3 @@ const struct pmm_manager best_fit_pmm_manager = {
     .nr_free_pages = best_fit_nr_free_pages,
     .check = best_fit_check,
 };
-
