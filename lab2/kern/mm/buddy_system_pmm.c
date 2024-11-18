@@ -60,8 +60,6 @@ Page* buddy_alloc_pages(size_t n) {
     }
     // 找到需要的页区
     // 先找左孩子，再找右孩子
-    // 以这种树状的形式进行查找很好的避免了我之前用链表想法的问题
-    // 也就是避免了拆开一块地址再重新将其并回
     unsigned int index = 1;
     while(1){
         if (buddy_page[LEFT_CHILD(index)] >= n){
