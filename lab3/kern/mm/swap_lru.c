@@ -89,7 +89,7 @@ _lru_check_swap(void) {
     assert(*(unsigned char *)0x1000 == 0x0a);
     *(unsigned char *)0x1000 = 0x0a;
     assert(pgfault_num==11);
-
+    cprintf("lru test passed");
     return 0;
 }
 
