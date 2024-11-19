@@ -406,9 +406,9 @@ do_pgfault(struct mm_struct *mm, uint_t error_code, uintptr_t addr) {
             //map of phy addr <--->
             //logical addr
             //(3) make the page swappable.
-            swap_in(mm, addr, &page);//page存放物理页面的地址
-            page_insert(mm->pgdir, page, addr, perm); //更新页表，插入新的页表项
-            swap_map_swappable(mm, addr, page, 1);//标记这个页面将来是可以再换出的
+            swap_in(mm, addr, &page);
+            page_insert(mm->pgdir, page, addr, perm); 
+            swap_map_swappable(mm, addr, page, 1);
             page->pra_vaddr = addr;
         } else {
             cprintf("no swap_init_ok but ptep is %x, failed\n", *ptep);
