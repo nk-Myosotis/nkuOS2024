@@ -130,13 +130,78 @@ proc_run用于将指定的进程切换到CPU上运行。它的大致执行步骤
 - 实现上下文切换。`/kern/process`中已经预先编写好了`switch.S`，其中定义了`switch_to()`函数。可实现两个进程的context切换。
 - 允许中断。
 
+
 请回答如下问题：
 
 - 在本实验的执行过程中，创建且运行了几个内核线程？
 
+```c
+void
+proc_run(struct proc_struct *proc) {
+    if (proc != current) {
+        // LAB4:EXERCISE3 2213029
+        /*
+        * Some Useful MACROs, Functions and DEFINEs, you can use them in below implementation.
+        * MACROs or Functions:
+        *   local_intr_save():        Disable interrupts
+        *   local_intr_restore():     Enable Interrupts
+        *   lcr3():                   Modify the value of CR3 register
+        *   switch_to():              Context switching between two processes
+        */
+        bool intr_flag;
+        struct proc_struct *prev = current, *next = proc;
+        // 中断使能。
+        local_intr_save(intr_flag);
+        // 将当前进程设为传入的进程
+        current = proc;
+        // 修改页表项
+        // 重新加载 cr3 寄存器(页目录表基址) 进行进程间的页表切换
+        lcr3(next->cr3);
+        // 使用 switch_to 进行上下文切换。
+        switch_to(&(prev->context), &(next->context));
+        local_intr_restore(intr_flag);
+    }
+}
+```
+pron_run实现了切换到一个新的进程（线程）的功能。在这段代码中，首先，需要判断切换到的进程（线程）是否是当前进程（线程），如果是，则无需进行任何处理；如果要切换的进程（线程）不是当前进程（线程），则进行进程切换操作；调用 local_intr_save(intr_flag) 函数关闭中断，以确保在进程切换过程中不会被中断；接着声明两个指向 struct proc_struct 类型的指针 prev 和 next，分别用于保存当前进程和要切换到的下一个进程，将当前进程指针 current 设置为要切换到的下一个进程；调用 lcr3(proc->cr3) 函数切换到下一个进程的页表，即将页表寄存器 CR3 的值设置为下一个进程的页表基址；调用 switch_to(&(prev->context), &(next->context)) 函数进行上下文切换，将当前进程的上下文保存到 prev->context 中，将下一个进程的上下文恢复到 next->context 中；最后再调用 local_intr_restore(intr_flag) 函数开启中断，恢复中断状态。至此，进程切换完成，当前进程被切换为要切换到的下一个进程（线程）。
+
+在本实验中，一共创建了两个内核线程，一个为 idle 另外一个为执行 init_main 的 init 线程。
 
 ### 扩展练习 Challenge：
 
 说明语句`local_intr_save(intr_flag);....local_intr_restore(intr_flag);`是如何实现开关中断的？
 
+```c
+static inline bool __intr_save(void) {
+    if (read_csr(sstatus) & SSTATUS_SIE) {
+        intr_disable();
+        return 1;
+    }
+    return 0;
+}
 
+static inline void __intr_restore(bool flag) {
+    if (flag) {
+        intr_enable();
+    }
+}
+
+#define local_intr_save(x) \
+    do {                   \
+        x = __intr_save(); \
+    } while (0)
+#define local_intr_restore(x) __intr_restore(x);
+```
+
+在 local_intr_save 宏中，x = __intr_save(); 会调用 __intr_save() 函数来禁用中断、保存当前中断状态并将其存储在 intr_flag 变量中。而在 local_intr_restore 宏中，__intr_restore(x); 会使用之前保存的中断状态来恢复中断。
+1. local_intr_save(intr_flag);:
+    这个宏调用了 __intr_save() 函数，并将返回值赋给 intr_flag。
+    __intr_save() 函数的作用是检查当前的中断状态（通过读取 sstatus 寄存器的 SSTATUS_SIE 位）。
+    如果中断是开启的（SSTATUS_SIE 位为1），则调用 intr_disable() 函数来关闭中断，并返回 1。
+    如果中断是关闭的，则直接返回 0。
+    因此，intr_flag 会保存中断在调用 local_intr_save 之前的状态。
+2. local_intr_restore(intr_flag);:
+    这个宏调用了 __intr_restore(intr_flag);。
+    __intr_restore() 函数根据传入的 flag 值决定是否重新开启中断。
+    如果 flag 为 1，则调用 intr_enable() 函数来开启中断。
+    如果 flag 为 0，则不做任何操作。
