@@ -23,7 +23,7 @@ alloc_proc函数（位于kern/process/proc.c中）负责分配并返回一个新
 
 初始化的思路非常简单，主要是进行清零操作，即将所有成员变量都设置为0，指针则设置为NULL，个别字段需要特殊处理。指导书给出了三个需要特别初始化的部分：进程的状态设置为PROC_UNINIT，pid设置为-1，页表基址设置为uCore内核已建立的启动页表地址，即boot_cr3。
 
-```c
+```
         proc->state = PROC_UNINIT; 
         proc->pid = -1;
         proc->runs = 0;
@@ -118,6 +118,80 @@ kernel_thread_entry:        # void kernel_thread(void)
 请在实验报告中简要说明你的设计实现过程。请回答如下问题：
 
 - 请说明ucore是否做到给每个新fork的线程一个唯一的id？请说明你的分析和理由。
+
+`do_fork`函数完善如下：
+
+```
+int
+do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf) {
+    int ret = -E_NO_FREE_PROC;
+    struct proc_struct *proc;
+    if (nr_process >= MAX_PROCESS) {
+        goto fork_out;
+    }
+    ret = -E_NO_MEM;
+proc = alloc_proc();    // 调用alloc_proc函数分配一个proc_struct结构体
+if (proc == NULL) { // 如果分配失败，返回错误码
+        goto fork_out;
+    }
+proc->parent = current; // 设置父进程为当前进程
+if (setup_kstack(proc)) {  // 调用setup_kstack函数为子进程分配内核栈
+        goto bad_fork_cleanup_kstack;
+    }
+if (copy_mm(clone_flags, proc)) {  // 调用copy_mm函数复制父进程的内存管理信息
+        goto bad_fork_cleanup_proc;
+    }
+copy_thread(proc, stack, tf);   // 调用copy_thread函数复制父进程的trapframe信息
+bool intr_flag;
+local_intr_save(intr_flag); // 关闭中断
+proc->pid = get_pid();  // 为子进程分配pid
+hash_proc(proc);    // 将子进程添加到hash_list中
+list_add(&proc_list, &(proc->list_link));   // 将子进程添加到proc_list中
+nr_process++;
+local_intr_restore(intr_flag);  // 开启中断
+wakeup_proc(proc);  // 唤醒子进程
+ret = proc->pid;    // 设置返回值为子进程的pid
+fork_out:
+return ret;
+bad_fork_cleanup_kstack:
+    put_kstack(proc);
+bad_fork_cleanup_proc:
+    kfree(proc);
+    goto fork_out;
+}
+```
+1. 检查进程数量是否达到上限
+- `if (nr_process >= MAX_PROCESS)`：首先检查系统当前运行的进程数量`nr_process`是否超过了最大进程数`MAX_PROCESS`。如果当前进程数量已达到最大允许值`MAX_PROCESS`，则直接跳转到`fork_out`标签处，准备返回错误码。
+2. 分配进程结构体
+- `proc = alloc_proc();`：尝试分配一个新的`proc_struct`结构体，即新进程的控制块，用于存储新进程的信息。
+- 如果分配失败（`proc == NULL`），则函数会跳转到错误处理代码，释放已分配的资源（如果有的话）并返回错误码（`-E_NO_MEM`）。
+3. 设置父进程
+- `proc->parent = current;`：新进程的父进程被设置为当前正在执行的进程（`current`）。这是通过更新新进程结构体中的`parent`字段来实现的。
+4. 设置内核栈
+- `if (setup_kstack(proc))`：函数为新进程分配并初始化一个内核栈。内核栈是进程在内核模式下执行代码时使用的栈空间。
+- 如果分配或初始化失败，则函数会跳转到清理内核栈的错误处理代码。
+5. 复制内存管理信息
+- `if (copy_mm(clone_flags, proc))`：根据`clone_flags`参数的值复制父进程的内存管理信息（如地址空间）。
+- 如果`clone_flags`指示新进程应该共享父进程的地址空间，则这个函数可能会以不同的方式执行，以避免不必要的内存复制。
+- 如果复制失败，则函数会跳转到清理进程结构体的错误处理代码。
+6. 复制线程信息
+- `copy_thread(proc, stack, tf);`：函数复制父进程的线程信息到新进程。包括设置新进程的栈顶地址、复制`trapframe`以保存新进程的上下文等。
+- 这个步骤是确保新进程能够从一个已知的安全状态开始执行的关键。
+7. 关闭并恢复中断
+- 在更新全局数据结构（如进程列表和哈希表）之前，函数会关闭中断以防止竞态条件的发生。
+- `local_intr_save(intr_flag);`：保存当前中断状态并关闭中断。
+- `local_intr_restore(intr_flag);`：在完成所有必要的更新后，恢复之前的中断状态。
+8. 分配PID并添加到进程列表
+- `proc->pid = get_pid();`：为新进程分配一个唯一的进程`ID`（`PID`）。
+- `hash_proc(proc);`：将新进程添加到哈希表中，以便快速查找,它允许根据进程的PID或其他唯一标识符快速定位进程。
+- `list_add(&proc_list, &(proc->list_link));`：将新进程添加到全局进程列表`proc_list`中。这个列表包含了系统中所有当前活动的进程。
+9. 更新进程数量并唤醒新进程
+- `nr_process++;`：增加当前进程数量。
+- `wakeup_proc(proc);`：设置新进程为可运行状态，将其添加到调度器的就绪队列中，并可能触发调度器选择它运行。
+10.  返回新进程的PID
+- `ret = proc->pid;`：将新进程的`PID`赋值给`ret`变量，并通过`fork_out`标签返回这个值。如果函数在执行过程中遇到任何错误，它将跳转到错误处理代码并返回一个相应的错误码。
+
+回答问题：`uCore`通过`get_pid()`函数给每一个新`fork`线程分配`id`，而在`get_pid()`函数中，其通过递增`PID`、遍历进程列表并检查是否已被使用的方式，确保了每个新`fork`的进程都分配了一个唯一的`PID`。因此，`uCore`实现了为每个新`fork`的线程分配唯一的`ID`。
 
 ### 练习3：编写proc_run 函数（需要编码）
 
